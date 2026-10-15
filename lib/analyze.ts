@@ -2,35 +2,37 @@ import { ACHIEVABLE_SHARE, CHANNEL_SHARE, type Industry } from "./benchmarks";
 import type { SiteSignals } from "./checks/crawl";
 import type { PageSpeed } from "./checks/pagespeed";
 import type { AdsResult, MapsResult, SerpResult } from "./checks/google";
+import type { MetaAdsResult } from "./checks/meta";
 import type { CategoryId, CategoryScore, Check, Finding, FullReport, Potential, Status } from "./types";
 
 export interface ScanInput {
   company: string;
   domain: string;
-  url: string;
   industry: Industry;
-  dealValue?: number;
   site: SiteSignals;
   pagespeed: PageSpeed | null;
-  ads: AdsResult | null;
+  googleAds: AdsResult | null;
+  metaAds: MetaAdsResult | null;
   ranking: SerpResult | null;
   maps: MapsResult | null;
 }
 
 const CATEGORY_LABELS: Record<CategoryId, string> = {
-  sichtbarkeit: "Sichtbarkeit bei Google",
+  kampagnen: "Kampagnen & Reichweite",
+  funnel: "Funnel & Landingpages",
+  tracking: "Tracking & Retargeting",
+  vertrauen: "Sichtbarkeit & Vertrauen",
   website: "Website & Ladezeit",
-  conversion: "Anfragen-Maschine",
-  tracking: "Tracking & Messbarkeit",
   luxemburg: "Luxemburg-Fit",
 };
 
 const CATEGORY_WEIGHTS: Record<CategoryId, number> = {
-  sichtbarkeit: 35,
-  website: 20,
-  conversion: 25,
-  tracking: 10,
-  luxemburg: 10,
+  kampagnen: 25,
+  funnel: 25,
+  tracking: 20,
+  vertrauen: 12,
+  website: 10,
+  luxemburg: 8,
 };
 
 const STATUS_POINTS: Record<Status, number | null> = { good: 1, warn: 0.5, bad: 0, unknown: null };
@@ -38,85 +40,216 @@ const STATUS_POINTS: Record<Status, number | null> = { good: 1, warn: 0.5, bad: 
 const fmt = (n: number) => n.toLocaleString("de-LU");
 
 export function analyze(input: ScanInput): FullReport {
-  const { site, pagespeed, ads, ranking, maps, industry } = input;
+  const { site, pagespeed, googleAds, metaAds, ranking, maps, industry } = input;
   const checks: Check[] = [];
   const findings: Finding[] = [];
   const add = (c: Check) => checks.push(c);
   const find = (f: Finding) => findings.push(f);
+  const t = site.tracking;
 
-  // ---------- Sichtbarkeit ----------
-  const adsRunning = ads ? ads.running : ranking?.paidVisible ? true : null;
+  // ---------- Kampagnen & Reichweite ----------
+  const metaRunning = metaAds ? metaAds.running : null;
   add({
-    id: "ads",
-    category: "sichtbarkeit",
-    label: "Google Ads in Luxemburg",
-    status: adsRunning === true ? "good" : adsRunning === false ? "bad" : site.tracking.googleAdsTag ? "warn" : "bad",
-    value:
-      adsRunning === true
-        ? ads
-          ? `Aktiv (${ads.creatives} Anzeigen gefunden)`
-          : "Aktiv"
-        : adsRunning === false
-          ? "Keine aktiven Anzeigen gefunden"
-          : site.tracking.googleAdsTag
-            ? "Ads-Tag vorhanden, Anzeigen nicht bestätigt"
-            : "Keine Hinweise auf Google Ads",
+    id: "metaads",
+    category: "kampagnen",
+    label: "Meta Ads (Facebook & Instagram)",
+    status: metaRunning ? "good" : metaRunning === null && t.metaPixel ? "warn" : "bad",
+    value: metaRunning
+      ? `Aktiv (${metaAds!.ads} Anzeigen in Luxemburg)`
+      : metaRunning === false
+        ? "Keine aktiven Anzeigen in Luxemburg"
+        : t.metaPixel
+          ? "Pixel vorhanden, Anzeigen nicht bestätigt"
+          : "Keine Hinweise auf Meta Ads",
   });
-  if (adsRunning !== true) {
+
+  const googleRunning = googleAds ? googleAds.running : ranking?.paidVisible ? true : null;
+  add({
+    id: "googleads",
+    category: "kampagnen",
+    label: "Google Ads",
+    status: googleRunning ? "good" : googleRunning === null && t.googleAdsTag ? "warn" : "bad",
+    value: googleRunning
+      ? googleAds
+        ? `Aktiv (${googleAds.creatives} Anzeigen in Luxemburg)`
+        : "Aktiv"
+      : googleRunning === false
+        ? "Keine aktiven Anzeigen in Luxemburg"
+        : t.googleAdsTag
+          ? "Ads-Tag vorhanden, Anzeigen nicht bestätigt"
+          : "Keine Hinweise auf Google Ads",
+  });
+
+  const channels = [metaRunning, googleRunning].filter(Boolean).length;
+  if (channels === 0) {
     find({
-      id: "ads",
-      category: "sichtbarkeit",
+      id: "kampagnen",
+      category: "kampagnen",
       severity: "high",
-      title: "Du schaltest keine Google Ads in Luxemburg",
-      detail: `Wer jetzt bei Google nach „${industry.keyword || industry.label}“ sucht, landet bei deiner Konkurrenz. Ganz oben stehen bei Google die Anzeigen, und dort bist du nicht.${
-        ranking?.competitorsWithAds ? ` Aktuell schalten ${ranking.competitorsWithAds} Mitbewerber Anzeigen auf genau diese Suche.` : ""
-      }`,
+      title: "Kein planbarer Kundenstrom: keine aktiven Kampagnen",
+      detail: `Weder auf Facebook/Instagram noch bei Google laufen aktuell Anzeigen in Luxemburg. Neue Kunden kommen damit nur über Empfehlungen und Zufall. Das ist weder planbar noch skalierbar, während Mitbewerber${
+        ranking?.competitorsWithAds ? ` (allein ${ranking.competitorsWithAds} auf Google bei „${industry.keyword}“)` : ""
+      } sich die Kaufinteressenten aktiv holen.`,
       recommendation:
-        "Starte eine Google-Ads-Suchkampagne auf kaufbereite Keywords (FR + DE) mit eigener Landingpage und Conversion-Tracking. Bei hochpreisigen Angeboten reichen wenige Abschlüsse, damit sich das Budget mehrfach zurückzahlt.",
+        "Ein Performance-System aufbauen statt einzelne Werbeanzeigen: Meta Ads, um Kaufinteressenten in Luxemburg anzusprechen, bevor sie sich für einen Anbieter entschieden haben, und Google Ads für alle, die bereits aktiv suchen. Gesteuert wird nach Kosten pro qualifizierter Anfrage, nicht nach Klicks oder Reichweite.",
+    });
+  } else if (channels === 1) {
+    find({
+      id: "kampagnen",
+      category: "kampagnen",
+      severity: "medium",
+      title: `Nur auf einem Kanal aktiv (${metaRunning ? "Meta" : "Google"})`,
+      detail: metaRunning
+        ? "Du sprichst Interessenten auf Facebook/Instagram an, aber wer aktiv bei Google sucht, findet über Anzeigen nur deine Konkurrenz."
+        : "Du erreichst nur Menschen, die schon aktiv suchen. Die viel größere Gruppe, die noch nicht sucht, aber kaufen würde, erreichst du über Meta Ads nicht.",
+      recommendation:
+        "Beide Kanäle als ein System aufsetzen: Meta erzeugt Nachfrage und Retargeting-Zielgruppen, Google fängt die aktive Suche ab. Gemeinsam gemessen über Kosten pro Anfrage und Abschluss.",
     });
   }
 
+  // ---------- Funnel & Landingpages ----------
+  add({
+    id: "offer",
+    category: "funnel",
+    label: "Klares Einstiegsangebot",
+    status: site.hasOffer ? "good" : "bad",
+    value: site.hasOffer ? "Vorhanden" : "Nicht gefunden",
+  });
+  if (!site.hasOffer) {
+    find({
+      id: "offer",
+      category: "funnel",
+      severity: "high",
+      title: "Kein Einstiegsangebot: Interessenten bleiben anonym",
+      detail:
+        "Bei hochpreisigen Leistungen entscheidet sich niemand beim ersten Besuch. Ohne niedrigschwelligen Einstieg (z. B. kostenlose Erstberatung, Analyse oder Bewertung) verlässt der Großteil deiner Besucher die Seite, ohne dass du je erfährst, wer sie waren.",
+      recommendation:
+        "Ein starkes Einstiegsangebot entwickeln, das für den Kunden einen echten Wert hat (z. B. kostenlose Analyse, Wertermittlung oder Planungsgespräch), und alle Kampagnen genau darauf ausrichten, mit Qualifizierungsfragen, damit nur passende Anfragen ankommen.",
+    });
+  }
+
+  add({
+    id: "landing",
+    category: "funnel",
+    label: "Eigene Landingpages",
+    status: site.landingPages >= 2 ? "good" : site.landingPages === 1 ? "warn" : "bad",
+    value: site.landingPages ? `${site.landingPages} gefunden` : "Keine gefunden",
+  });
+  if (site.landingPages < 2) {
+    find({
+      id: "landing",
+      category: "funnel",
+      severity: site.landingPages ? "medium" : "high",
+      title: site.landingPages ? "Nur eine Landingpage für deine Angebote" : "Keine Landingpages: Werbebudget würde verpuffen",
+      detail:
+        "Besucher aus Kampagnen landen auf der allgemeinen Startseite statt auf einer Seite, die genau ein Angebot verkauft. Das kostet typischerweise 50 % und mehr der möglichen Anfragen und macht jede Anfrage entsprechend teurer.",
+      recommendation:
+        "Pro Hauptangebot eine fokussierte Landingpage: klares Versprechen, Referenzen und Ergebnisse, Ablauf, Einwände und FAQ, genau ein Call-to-Action. Danach laufend A/B-testen.",
+    });
+  }
+
+  add({
+    id: "form",
+    category: "funnel",
+    label: "Anfrage-Formular / Online-Termin",
+    status: site.hasForm || site.hasBooking ? "good" : "bad",
+    value: site.hasBooking ? "Online-Terminbuchung" : site.hasForm ? "Formular vorhanden" : "Fehlt",
+  });
+  add({
+    id: "cta",
+    category: "funnel",
+    label: "Klare Handlungsaufforderungen",
+    status: site.ctaCount >= 3 ? "good" : site.ctaCount >= 1 ? "warn" : "bad",
+    value: `${site.ctaCount} gefunden`,
+  });
+  add({
+    id: "phone",
+    category: "funnel",
+    label: "Klickbare Telefonnummer",
+    status: site.hasTelLink ? "good" : "warn",
+    value: site.hasTelLink ? "Ja" : "Nein",
+  });
+  if (!(site.hasForm || site.hasBooking) || site.ctaCount < 3) {
+    find({
+      id: "conversion",
+      category: "funnel",
+      severity: site.hasForm || site.hasBooking ? "medium" : "high",
+      title: site.hasForm || site.hasBooking ? "Zu wenige Handlungsaufforderungen" : "Besucher können dich kaum direkt anfragen",
+      detail:
+        site.hasForm || site.hasBooking
+          ? `Nur ${site.ctaCount} klare Handlungsaufforderung(en) gefunden. Interessenten wissen nicht, was sie als Nächstes tun sollen.`
+          : "Kein Anfrage-Formular und keine Online-Terminbuchung gefunden. Jeder Interessent muss aktiv anrufen oder eine Mail schreiben, und die meisten tun das nicht.",
+      recommendation: "Kurzes Qualifizierungs-Formular (3–5 Felder) oder direkte Terminbuchung, dazu ein sichtbarer Button in jedem Abschnitt der Seite.",
+    });
+  }
+
+  // ---------- Tracking & Retargeting ----------
+  add({
+    id: "analytics",
+    category: "tracking",
+    label: "Google Analytics / Tag Manager",
+    status: t.ga4 || t.gtm ? "good" : "bad",
+    value: [t.ga4 && "GA4", t.gtm && "GTM"].filter(Boolean).join(" + ") || "Nicht gefunden",
+  });
+  const adPixels = [t.metaPixel && "Meta Pixel", t.googleAdsTag && "Google Ads", t.linkedin && "LinkedIn", t.tiktok && "TikTok"].filter(Boolean);
+  add({
+    id: "pixels",
+    category: "tracking",
+    label: "Conversion-Tracking & Retargeting-Pixel",
+    status: adPixels.length >= 2 ? "good" : adPixels.length === 1 || t.gtm ? "warn" : "bad",
+    value: adPixels.join(", ") || (t.gtm ? "Evtl. über GTM, nicht sichtbar" : "Nicht gefunden"),
+  });
+  if (adPixels.length === 0) {
+    find({
+      id: "tracking",
+      category: "tracking",
+      severity: "high",
+      title: "Kein Conversion-Tracking: Marketing läuft im Blindflug",
+      detail:
+        "Ohne Meta Pixel und Conversion-Tracking weißt du nicht, welche Maßnahme Anfragen und Umsatz bringt, und die Werbe-Algorithmen können nicht auf echte Kunden optimieren. Dazu gehen alle Besucher verloren, die nicht sofort anfragen. Bei teuren Angeboten mit langer Entscheidungszeit ist das der Großteil.",
+      recommendation:
+        "Sauberes Tracking-Fundament: Tag Manager, GA4, Meta Pixel inkl. Conversions API und Google-Ads-Conversions, DSGVO-konform mit Consent-Banner. Danach Retargeting-Kampagnen, die Besucher über Wochen hinweg zurückholen.",
+    });
+  } else if (!t.metaPixel) {
+    find({
+      id: "tracking",
+      category: "tracking",
+      severity: "medium",
+      title: "Kein Meta Pixel: kein Retargeting auf Facebook & Instagram",
+      detail: "Besucher, die nicht sofort anfragen, kannst du auf Facebook und Instagram nicht erneut ansprechen, obwohl dort die meisten von ihnen täglich unterwegs sind.",
+      recommendation: "Meta Pixel inkl. Conversions API einrichten und Retargeting-Kampagnen mit Referenzen und Kundenstimmen aufsetzen.",
+    });
+  }
+
+  // ---------- Sichtbarkeit & Vertrauen ----------
   if (ranking) {
     const pos = ranking.organicPosition;
     add({
       id: "ranking",
-      category: "sichtbarkeit",
+      category: "vertrauen",
       label: `Google-Ranking „${industry.keyword}“`,
       status: pos && pos <= 3 ? "good" : pos && pos <= 10 ? "warn" : "bad",
       value: pos ? `Position ${pos}` : "Nicht in den Top 20",
     });
-    if (!pos || pos > 3) {
+    if (!pos || pos > 10) {
       find({
         id: "ranking",
-        category: "sichtbarkeit",
-        severity: pos && pos <= 10 ? "medium" : "high",
-        title: pos ? `Nur Platz ${pos} bei Google.lu` : "Bei Google.lu für deine Branche unsichtbar",
-        detail: pos
-          ? `Die ersten 3 Plätze bekommen über 60 % aller Klicks. Auf Platz ${pos} geht der Großteil der Suchenden an dir vorbei.`
-          : `Für „${industry.keyword}“ tauchst du auf den ersten zwei Google-Seiten nicht auf. Diese Suchenden findest du nur über Anzeigen.`,
-        recommendation:
-          "Baue für dein Hauptangebot eine eigene, mehrsprachige Seite mit klarer Keyword-Ausrichtung auf und kombiniere sie kurzfristig mit Google Ads, bis die organischen Rankings greifen.",
+        category: "vertrauen",
+        severity: "medium",
+        title: pos ? `Bei Google nur auf Platz ${pos}` : "Bei Google für deine Branche nicht auffindbar",
+        detail: `Wer in Luxemburg nach „${industry.keyword}“ sucht, findet dich ${pos ? "erst auf Seite 2" : "auf den ersten zwei Seiten gar nicht"}. Diese Nachfrage geht komplett an Mitbewerber.`,
+        recommendation: "Kurzfristig über Google Ads abfangen, mittelfristig mit mehrsprachigen Angebotsseiten organisch aufbauen.",
       });
     }
   } else {
     const seoBasics = [site.title.length > 10, site.metaDescription.length > 50, site.h1Count === 1, site.hasStructuredData, site.sitemapUrls !== null].filter(Boolean).length;
     add({
       id: "seo",
-      category: "sichtbarkeit",
+      category: "vertrauen",
       label: "SEO-Grundlagen",
       status: seoBasics >= 4 ? "good" : seoBasics >= 2 ? "warn" : "bad",
       value: `${seoBasics} von 5 Basics erfüllt`,
     });
-    if (seoBasics < 4) {
-      find({
-        id: "seo",
-        category: "sichtbarkeit",
-        severity: "medium",
-        title: "SEO-Grundlagen fehlen",
-        detail: `Nur ${seoBasics} von 5 technischen SEO-Basics sind erfüllt (Title, Meta-Description, H1, strukturierte Daten, Sitemap). Google versteht deine Seite dadurch schlechter.`,
-        recommendation: "Title, Meta-Description und H1 pro Seite sauber setzen, LocalBusiness-Schema ergänzen und eine Sitemap bei der Google Search Console einreichen.",
-      });
-    }
   }
 
   if (maps) {
@@ -124,51 +257,38 @@ export function analyze(input: ScanInput): FullReport {
     const medium = maps.found && (maps.reviews ?? 0) >= 10 && (maps.rating ?? 0) >= 4;
     add({
       id: "maps",
-      category: "sichtbarkeit",
-      label: "Google-Maps-Profil & Bewertungen",
+      category: "vertrauen",
+      label: "Google-Bewertungen",
       status: strong ? "good" : medium ? "warn" : "bad",
       value: maps.found ? `${maps.rating?.toLocaleString("de-LU") ?? "–"} ★ · ${maps.reviews ?? 0} Bewertungen` : "Kein Profil gefunden",
     });
     if (!strong) {
       find({
         id: "maps",
-        category: "sichtbarkeit",
-        severity: maps.found ? "medium" : "high",
-        title: maps.found ? "Zu wenige Google-Bewertungen" : "Kein Google-Unternehmensprofil gefunden",
+        category: "vertrauen",
+        severity: "medium",
+        title: maps.found ? "Zu wenig Social Proof bei Google" : "Kein Google-Unternehmensprofil gefunden",
         detail: maps.found
-          ? `Mit ${maps.reviews ?? 0} Bewertungen (${maps.rating?.toLocaleString("de-LU") ?? "–"} ★) wirkst du neben Wettbewerbern mit 50+ Bewertungen weniger vertrauenswürdig, gerade bei hohen Auftragswerten.`
-          : "Ohne Google-Unternehmensprofil erscheinst du nicht in Google Maps und nicht in der Karten-Box über den Suchergebnissen.",
-        recommendation: "Profil vollständig pflegen und nach jedem Auftrag automatisiert um eine Bewertung bitten (Ziel: 50+ Bewertungen mit 4,5 ★ oder mehr).",
+          ? `Bevor jemand eine größere Investition tätigt, prüft er dich. Mit ${maps.reviews ?? 0} Bewertungen (${maps.rating?.toLocaleString("de-LU") ?? "–"} ★) verlierst du diesen Vergleich gegen Anbieter mit 50+ Bewertungen, auch wenn deine Kampagnen funktionieren.`
+          : "Wer dich nach einer Anzeige googelt, findet kein Profil und keine Bewertungen. Das kostet Vertrauen genau im entscheidenden Moment.",
+        recommendation: "Systematisch Bewertungen nach jedem Auftrag einholen (automatisiert) und die besten Stimmen direkt in Anzeigen und Landingpages einsetzen.",
       });
     }
   }
 
   // ---------- Website ----------
-  add({
-    id: "https",
-    category: "website",
-    label: "Sichere Verbindung (HTTPS)",
-    status: site.https ? "good" : "bad",
-    value: site.https ? "Aktiv" : "Fehlt",
-  });
+  add({ id: "https", category: "website", label: "Sichere Verbindung (HTTPS)", status: site.https ? "good" : "bad", value: site.https ? "Aktiv" : "Fehlt" });
   if (!site.https) {
     find({
       id: "https",
       category: "website",
       severity: "high",
       title: "Deine Website gilt als „nicht sicher“",
-      detail: "Browser zeigen bei deiner Seite eine Sicherheitswarnung an. Viele Besucher springen dann sofort ab.",
+      detail: "Browser zeigen bei deiner Seite eine Sicherheitswarnung an. Viele Besucher springen dann sofort ab, und jeder bezahlte Klick ist verloren.",
       recommendation: "SSL-Zertifikat aktivieren (meist kostenlos beim Hoster) und alle Seiten auf HTTPS umleiten.",
     });
   }
-
-  add({
-    id: "mobile",
-    category: "website",
-    label: "Für Smartphones optimiert",
-    status: site.hasViewport ? "good" : "bad",
-    value: site.hasViewport ? "Ja" : "Nein",
-  });
+  add({ id: "mobile", category: "website", label: "Für Smartphones optimiert", status: site.hasViewport ? "good" : "bad", value: site.hasViewport ? "Ja" : "Nein" });
 
   if (pagespeed) {
     const lcp = (pagespeed.lcpMs / 1000).toFixed(1).replace(".", ",");
@@ -179,14 +299,14 @@ export function analyze(input: ScanInput): FullReport {
       status: pagespeed.performance >= 80 ? "good" : pagespeed.performance >= 50 ? "warn" : "bad",
       value: `${pagespeed.performance}/100 · ${lcp} s`,
     });
-    if (pagespeed.performance < 80) {
+    if (pagespeed.performance < 50) {
       find({
         id: "speed",
         category: "website",
-        severity: pagespeed.performance < 50 ? "high" : "medium",
+        severity: "medium",
         title: `Langsame mobile Website (${lcp} Sekunden)`,
-        detail: `Google bewertet deine mobile Ladegeschwindigkeit mit ${pagespeed.performance}/100. Ab 3 Sekunden Ladezeit springt über die Hälfte der mobilen Besucher ab, bevor sie dein Angebot überhaupt sehen.`,
-        recommendation: "Bilder komprimieren (WebP), unnötige Plugins und Skripte entfernen, Caching aktivieren. Ziel: unter 2,5 s und mindestens 80/100.",
+        detail: `Über 80 % der Klicks aus Social-Media-Kampagnen kommen vom Smartphone. Bei ${lcp} s Ladezeit springt ein großer Teil ab, bevor die Seite überhaupt sichtbar ist. Du bezahlst diese Klicks trotzdem.`,
+        recommendation: "Landingpages auf Geschwindigkeit bauen: komprimierte Bilder (WebP), minimale Skripte, Caching. Ziel: unter 2,5 s.",
       });
     }
   } else {
@@ -199,98 +319,10 @@ export function analyze(input: ScanInput): FullReport {
     });
   }
 
-  // ---------- Conversion ----------
-  add({
-    id: "landing",
-    category: "conversion",
-    label: "Eigene Landingpages",
-    status: site.landingPages >= 2 ? "good" : site.landingPages === 1 ? "warn" : "bad",
-    value: site.landingPages ? `${site.landingPages} gefunden` : "Keine gefunden",
-  });
-  if (site.landingPages < 2) {
-    find({
-      id: "landing",
-      category: "conversion",
-      severity: site.landingPages ? "medium" : "high",
-      title: site.landingPages ? "Nur eine Landingpage für deine Angebote" : "Keine Landingpages für deine Angebote",
-      detail:
-        "Besucher aus Werbung landen auf der allgemeinen Startseite statt auf einer Seite, die genau ein Angebot verkauft. Das kostet bei Kampagnen typischerweise 50 % und mehr der möglichen Anfragen.",
-      recommendation:
-        "Pro Hauptangebot eine fokussierte Landingpage: klares Versprechen, Referenzen und Vorher-Nachher-Bilder, Ablauf, FAQ und genau ein Call-to-Action (z. B. „Kostenloses Erstgespräch“).",
-    });
-  }
-
-  add({
-    id: "form",
-    category: "conversion",
-    label: "Anfrage-Formular / Online-Termin",
-    status: site.hasForm || site.hasBooking ? "good" : "bad",
-    value: site.hasBooking ? "Online-Terminbuchung" : site.hasForm ? "Formular vorhanden" : "Fehlt",
-  });
-  add({
-    id: "cta",
-    category: "conversion",
-    label: "Klare Handlungsaufforderungen",
-    status: site.ctaCount >= 3 ? "good" : site.ctaCount >= 1 ? "warn" : "bad",
-    value: `${site.ctaCount} gefunden`,
-  });
-  add({
-    id: "phone",
-    category: "conversion",
-    label: "Klickbare Telefonnummer",
-    status: site.hasTelLink ? "good" : "warn",
-    value: site.hasTelLink ? "Ja" : "Nein",
-  });
-  if (!(site.hasForm || site.hasBooking) || site.ctaCount < 3) {
-    find({
-      id: "conversion",
-      category: "conversion",
-      severity: site.hasForm || site.hasBooking ? "medium" : "high",
-      title: site.hasForm || site.hasBooking ? "Zu wenige Handlungsaufforderungen" : "Besucher können dich kaum direkt anfragen",
-      detail:
-        site.hasForm || site.hasBooking
-          ? `Nur ${site.ctaCount} klare Handlungsaufforderung(en) gefunden. Interessenten wissen nicht, was sie als Nächstes tun sollen.`
-          : "Kein Anfrage-Formular und keine Online-Terminbuchung gefunden. Jeder Interessent muss aktiv anrufen oder eine Mail schreiben, und viele tun das nicht.",
-      recommendation: "Ein kurzes Qualifizierungs-Formular (3–5 Felder) und ein sichtbarer Button „Kostenloses Erstgespräch“ in jedem Abschnitt, optional auch WhatsApp.",
-    });
-  }
-
-  // ---------- Tracking ----------
-  const t = site.tracking;
-  add({
-    id: "analytics",
-    category: "tracking",
-    label: "Google Analytics / Tag Manager",
-    status: t.ga4 || t.gtm ? "good" : "bad",
-    value: [t.ga4 && "GA4", t.gtm && "GTM"].filter(Boolean).join(" + ") || "Nicht gefunden",
-  });
-  add({
-    id: "conversiontracking",
-    category: "tracking",
-    label: "Conversion-Tracking für Werbung",
-    status: t.googleAdsTag || t.metaPixel ? "good" : t.gtm ? "warn" : "bad",
-    value:
-      [t.googleAdsTag && "Google Ads", t.metaPixel && "Meta Pixel", t.linkedin && "LinkedIn", t.tiktok && "TikTok"].filter(Boolean).join(", ") ||
-      (t.gtm ? "Evtl. über GTM, nicht sichtbar" : "Nicht gefunden"),
-  });
-  if (!t.metaPixel && !t.googleAdsTag) {
-    find({
-      id: "tracking",
-      category: "tracking",
-      severity: "medium",
-      title: "Kein Werbe-Tracking: Besucher gehen für immer verloren",
-      detail:
-        "Ohne Meta-Pixel und Google-Ads-Tag kannst du Website-Besucher nicht erneut ansprechen (Retargeting) und weißt nicht, welche Maßnahme Anfragen bringt. Bei langen Kaufentscheidungen für teure Angebote ist das besonders teuer.",
-      recommendation: "Google Tag Manager mit GA4, Google-Ads-Conversion-Tag und Meta-Pixel (inkl. Conversions API) einrichten, DSGVO-konform mit Consent-Banner.",
-    });
-  }
-
   // ---------- Luxemburg ----------
   const langs = site.languages;
   const hasFr = langs.includes("fr");
-  const hasDe = langs.includes("de");
-  const hasEn = langs.includes("en");
-  const langCount = [hasFr, hasDe, hasEn].filter(Boolean).length;
+  const langCount = ["fr", "de", "en"].filter((l) => langs.includes(l)).length;
   add({
     id: "languages",
     category: "luxemburg",
@@ -302,12 +334,12 @@ export function analyze(input: ScanInput): FullReport {
     find({
       id: "languages",
       category: "luxemburg",
-      severity: "high",
+      severity: "medium",
       title: "Deine Website spricht nicht die Sprachen deiner Kunden",
-      detail: `In Luxemburg wird überwiegend auf Französisch gesucht, dazu auf Deutsch und Englisch (Expats und Grenzgänger). ${
+      detail: `Luxemburg ist mehrsprachig: Französisch, Deutsch und Englisch (Expats und Grenzgänger). ${
         langs.length ? `Erkannt wurde nur: ${langs.map((l) => l.toUpperCase()).join(", ")}.` : "Es wurde nur eine Sprache erkannt."
-      } Damit erreichst du einen großen Teil des Marktes gar nicht.`,
-      recommendation: "Mindestens FR + DE, idealerweise auch EN, jeweils mit eigenen URLs (/fr, /de, /en) und hreflang-Tags, damit Google jede Sprachversion richtig ausspielt.",
+      } Kampagnen können damit nur einen Teil des Marktes sinnvoll ansprechen.`,
+      recommendation: "Landingpages und Anzeigen in FR + DE (idealerweise EN) und Zielgruppen nach Sprache getrennt aussteuern.",
     });
   }
   add({
@@ -331,12 +363,13 @@ export function analyze(input: ScanInput): FullReport {
     sSum += CATEGORY_WEIGHTS[c.id] * c.score;
   }
   const score = Math.round(wSum ? sSum / wSum : 0);
+  const catScore = (id: CategoryId, fallback: number) => categories.find((c) => c.id === id)?.score ?? fallback;
 
   // ---------- Potenzial ----------
   const assumptions: string[] = [
-    `Geschätzt ca. ${fmt(industry.monthlySearches)} Google-Suchen pro Monat in ganz Luxemburg für ${industry.label} (FR/DE/EN).`,
-    `Ein optimal aufgestelltes Unternehmen erreicht ca. ${ACHIEVABLE_SHARE} % dieser Suchenden (Top-3-Ranking, Google Ads, starkes Maps-Profil).`,
-    `Branchenübliche Anfragequote einer optimierten Website: ${(industry.conversionRate * 100).toFixed(1).replace(".", ",")} %, Abschlussquote: ${Math.round(industry.closeRate * 100)} %.`,
+    `Erkannte Branche: ${industry.label}. Geschätzte Nachfrage: ca. ${fmt(industry.monthlySearches)} Kaufinteressenten pro Monat in ganz Luxemburg (Google-Suchen FR/DE/EN), zusätzlich Reichweite über Meta Ads.`,
+    `Ein optimal aufgestelltes Unternehmen erreicht ca. ${ACHIEVABLE_SHARE} % davon (Meta Ads, Google Ads, Top-Ranking, starke Bewertungen).`,
+    `Branchenübliche Anfragequote eines optimierten Funnels: ${(industry.conversionRate * 100).toFixed(1).replace(".", ",")} % der erreichten Interessenten.`,
   ];
 
   let organic: number;
@@ -344,50 +377,35 @@ export function analyze(input: ScanInput): FullReport {
     const p = ranking.organicPosition;
     organic = p && p <= 3 ? CHANNEL_SHARE.organicTop3 : p && p <= 10 ? CHANNEL_SHARE.organicTop10 : CHANNEL_SHARE.organicNone;
   } else {
-    const seo = categories.find((c) => c.id === "sichtbarkeit")?.score ?? 30;
-    organic = CHANNEL_SHARE.organicNone + (seo / 100) * (CHANNEL_SHARE.organicTop10 - CHANNEL_SHARE.organicNone);
-    assumptions.push("Google-Ranking nicht live geprüft, daher aus den SEO-Grundlagen geschätzt.");
+    organic = CHANNEL_SHARE.organicNone + (catScore("vertrauen", 30) / 100) * (CHANNEL_SHARE.organicTop10 - CHANNEL_SHARE.organicNone);
   }
-  const paid = adsRunning ? CHANNEL_SHARE.ads : 0;
-  let mapsShare: number;
+  let mapsShare: number = CHANNEL_SHARE.mapsMedium;
   if (maps) {
     const r = maps.rating ?? 0;
     const n = maps.reviews ?? 0;
     mapsShare = !maps.found ? CHANNEL_SHARE.mapsNone : r >= 4.5 && n >= 50 ? CHANNEL_SHARE.mapsStrong : n >= 10 && r >= 4 ? CHANNEL_SHARE.mapsMedium : CHANNEL_SHARE.mapsWeak;
-  } else {
-    mapsShare = CHANNEL_SHARE.mapsMedium;
-    assumptions.push("Google-Maps-Profil nicht live geprüft, daher wird ein mittelstarkes Profil angenommen.");
   }
-  const currentShare = Math.min(organic + paid + mapsShare, ACHIEVABLE_SHARE);
+  const currentShare = Math.min(organic + (googleRunning ? CHANNEL_SHARE.ads : 0) + (metaRunning ? CHANNEL_SHARE.meta : 0) + mapsShare, ACHIEVABLE_SHARE);
 
-  const websiteScore = categories.find((c) => c.id === "website")?.score ?? 50;
-  const conversionScore = categories.find((c) => c.id === "conversion")?.score ?? 50;
-  const quality = (websiteScore + conversionScore) / 200;
+  // Funnel-Qualität bestimmt, wie viele Besucher zu Anfragen werden.
+  const quality = (catScore("funnel", 50) * 2 + catScore("website", 50) + catScore("tracking", 50)) / 400;
   const crNow = industry.conversionRate * (0.3 + 0.7 * quality);
-
-  const dealValue = input.dealValue && input.dealValue > 0 ? input.dealValue : industry.dealValue;
-  if (input.dealValue) assumptions.push(`Durchschnittlicher Auftragswert laut deiner Angabe: ${fmt(dealValue)} €.`);
-  else assumptions.push(`Durchschnittlicher Auftragswert der Branche in Luxemburg: ca. ${fmt(dealValue)} €.`);
 
   const S = industry.monthlySearches;
   const currentLeads = S * (currentShare / 100) * crNow;
   const achievableLeads = S * (ACHIEVABLE_SHARE / 100) * industry.conversionRate;
   const lostLeads = Math.max(0, achievableLeads - currentLeads);
-  const lostCustomers = lostLeads * industry.closeRate;
-  const lostRevenueMonth = lostCustomers * dealValue;
 
   const potential: Potential = {
     monthlySearches: S,
     currentSharePct: round1(currentShare),
     achievableSharePct: ACHIEVABLE_SHARE,
+    missedPeopleMonth: roundPeople(S * ((ACHIEVABLE_SHARE - currentShare) / 100)),
     currentLeadsMonth: round1(currentLeads),
     achievableLeadsMonth: round1(achievableLeads),
     lostLeadsMonth: Math.round(lostLeads),
-    lostCustomersMonth: round1(lostCustomers),
-    lostRevenueMonth: roundMoney(lostRevenueMonth),
-    lostRevenueYear: roundMoney(lostRevenueMonth) * 12,
+    lostLeadsYear: Math.round(lostLeads) * 12,
     potentialPercent: Math.min(95, Math.max(5, Math.round((lostLeads / achievableLeads) * 100))),
-    dealValue,
   };
 
   const order = { high: 0, medium: 1, low: 2 } as const;
@@ -411,4 +429,4 @@ export function analyze(input: ScanInput): FullReport {
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
-const roundMoney = (n: number) => (n >= 10000 ? Math.round(n / 1000) * 1000 : Math.round(n / 100) * 100);
+const roundPeople = (n: number) => (n >= 1000 ? Math.round(n / 100) * 100 : Math.round(n / 10) * 10);

@@ -42,7 +42,7 @@ export function normalizeName(s: string): string {
     .trim();
 }
 
-function nameMatches(a: string, b: string): boolean {
+export function nameMatches(a: string, b: string): boolean {
   const x = normalizeName(a);
   const y = normalizeName(b);
   return !!x && !!y && (x.includes(y) || y.includes(x));

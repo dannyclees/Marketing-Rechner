@@ -23,11 +23,10 @@ export default function Home() {
             Kostenloser Marketing-Potenzial-Rechner
           </p>
           <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
-            Wie viele Kunden verlierst du in Luxemburg an deine <span className="text-brand-light">Konkurrenz?</span>
+            Wie viele Kunden in Luxemburg <span className="text-brand-light">finden dich nicht?</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-white/65">
-            Gib deine Website ein. Wir prüfen in 30 Sekunden deine Google Ads, deine Sichtbarkeit auf Google.lu, Landingpages, Ladezeit und Tracking und rechnen dir aus, wie viel Umsatz
-            gerade liegen bleibt.
+            Gib deine Website ein. Wir prüfen in 30 Sekunden deine Kampagnen, deinen Funnel und dein Tracking und zeigen dir, wie viele Anfragen dir jeden Monat entgehen.
           </p>
         </section>
 
@@ -35,9 +34,9 @@ export default function Home() {
 
         <section className="mt-16 grid gap-4 sm:grid-cols-3">
           {[
-            ["Google Ads & Ranking", "Schaltest du Anzeigen in Luxemburg? Wo stehst du auf Google.lu?"],
-            ["Website & Landingpages", "Ladezeit, Anfrage-Wege, Landingpages, Sprachen FR/DE/EN."],
-            ["Umsatz-Potenzial", "Wie viele Anfragen und wie viel Umsatz dir pro Monat entgehen."],
+            ["Kampagnen & Reichweite", "Laufen Kampagnen auf Meta und Google? Wie sichtbar bist du in Luxemburg?"],
+            ["Funnel & Tracking", "Einstiegsangebot, Landingpages, Anfrage-Wege, Pixel und Retargeting."],
+            ["Verpasste Anfragen", "Wie viele Interessenten dich nicht finden und wie viele Anfragen dir entgehen."],
           ].map(([t, d]) => (
             <div key={t} className="rounded-2xl border border-line bg-panel p-5">
               <p className="font-semibold">{t}</p>

@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 export const metadata: Metadata = {
   title: "Marketing-Potenzial-Rechner Luxemburg",
   description:
-    "Finde in 30 Sekunden heraus, wie viele Kunden und wie viel Umsatz dir in Luxemburg durch fehlendes Online-Marketing entgehen.",
+    "Finde in 30 Sekunden heraus, wie viele Interessenten in Luxemburg dich nicht finden und wie viele Anfragen dir jeden Monat entgehen.",
   icons: { icon: "/logo.svg" },
 };
 

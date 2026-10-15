@@ -22,10 +22,15 @@ export interface SiteSignals {
   tracking: { ga4: boolean; gtm: boolean; googleAdsTag: boolean; metaPixel: boolean; linkedin: boolean; tiktok: boolean };
   sitemapUrls: number | null;
   landingPages: number;
+  hasOffer: boolean;
+  /** Titel, Meta-Description und Überschriften – für die Branchenerkennung */
+  headlineText: string;
+  bodyText: string;
 }
 
 const CTA_RE = /(kontakt|contact|termin|rendez-vous|rdv|devis|angebot|offerte|anfrage|demande|réserv|reserv|book|buchen|appel|anrufen|call|beratung|consultation|estimation|bewertung|gratuit|kostenlos)/i;
 const BOOKING_RE = /(calendly|doctena|doctolib|resengo|treatwell|planity|zenchef|thefork|booksy|simplybook|acuity|hubspot\.com\/meetings|cal\.com)/i;
+const OFFER_RE = /(gratuit|offert|kostenlos|unverbindlich|free consultation|estimation gratuite|devis gratuit|erstgespräch|première consultation|analyse gratuite|sans engagement|offre spéciale|sonderangebot)/i;
 const LANDING_RE = /(landing|\/lp[\/-]|\/lp$|angebot|aktion|offre|promo|kampagne|campagne|campaign|special|gratis|gratuit|kostenlos|estimation|bewertung)/i;
 
 export async function crawlSite(url: URL): Promise<SiteSignals> {
@@ -87,7 +92,11 @@ export async function crawlSite(url: URL): Promise<SiteSignals> {
       return inputs.length >= 2;
     }).length > 0 || BOOKING_RE.test(html) || /hsforms|typeform|jotform|wpforms|gravityforms|contact-form-7|wpcf7/i.test(html);
 
-  const bodyText = $("body").text();
+  const headlineText = [$("title").text(), $('meta[name="description"]').attr("content") || "", $("h1, h2, h3").text()].join(" ");
+  const hasStructuredData = $('script[type="application/ld+json"]').length > 0;
+  const title = $("title").first().text().trim();
+  $("script, style, noscript").remove();
+  const bodyText = $("body").text().replace(/\s+/g, " ").slice(0, 20000);
 
   const tracking = {
     ga4: /G-[A-Z0-9]{6,}/.test(html) && /gtag|googletagmanager/.test(html),
@@ -112,7 +121,7 @@ export async function crawlSite(url: URL): Promise<SiteSignals> {
     finalUrl: final.toString(),
     https: final.protocol === "https:",
     loadMs: res.ms,
-    title: $("title").first().text().trim(),
+    title,
     metaDescription: ($('meta[name="description"]').attr("content") || "").trim(),
     h1Count: $("h1").length,
     hasViewport: $('meta[name="viewport"]').length > 0,
@@ -124,10 +133,13 @@ export async function crawlSite(url: URL): Promise<SiteSignals> {
     ctaCount,
     hasBooking,
     hasWhatsApp,
-    hasStructuredData: $('script[type="application/ld+json"]').length > 0,
+    hasStructuredData,
     tracking,
     sitemapUrls,
     landingPages: landing.size,
+    hasOffer: OFFER_RE.test(headlineText + " " + bodyText),
+    headlineText,
+    bodyText,
   };
 }
 

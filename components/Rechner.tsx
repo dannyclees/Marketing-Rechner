@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { INDUSTRIES } from "@/lib/benchmarks";
 import type { Check, Finding, FullReport, Status, Teaser } from "@/lib/types";
 
 type Phase = "form" | "scanning" | "result";
@@ -9,12 +8,11 @@ type Phase = "form" | "scanning" | "result";
 const BOOKING_URL = process.env.NEXT_PUBLIC_BOOKING_URL;
 const MIN_SCAN_MS = 9000;
 
-const eur = (n: number) => `${n.toLocaleString("de-LU")} €`;
 const num = (n: number) => n.toLocaleString("de-LU");
 
 export function Rechner() {
   const [phase, setPhase] = useState<Phase>("form");
-  const [form, setForm] = useState({ company: "", url: "", industry: INDUSTRIES[0].id, dealValue: "" });
+  const [form, setForm] = useState({ company: "", url: "" });
   const [error, setError] = useState("");
   const [teaser, setTeaser] = useState<Teaser | null>(null);
   const [report, setReport] = useState<FullReport | null>(null);
@@ -30,7 +28,7 @@ export function Rechner() {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...form, dealValue: form.dealValue ? Number(form.dealValue.replace(/\D/g, "")) : undefined }),
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Analyse fehlgeschlagen");
@@ -47,7 +45,7 @@ export function Rechner() {
   return (
     <div ref={topRef} className="scroll-mt-6">
       {phase === "form" && <ScanForm form={form} setForm={setForm} onSubmit={startScan} error={error} />}
-      {phase === "scanning" && <Scanning company={form.company} keyword={INDUSTRIES.find((i) => i.id === form.industry)?.keyword} />}
+      {phase === "scanning" && <Scanning company={form.company} />}
       {phase === "result" && teaser && (
         <Result
           teaser={teaser}
@@ -72,7 +70,7 @@ function ScanForm({
   onSubmit,
   error,
 }: {
-  form: { company: string; url: string; industry: string; dealValue: string };
+  form: { company: string; url: string };
   setForm: (f: typeof form) => void;
   onSubmit: (e: React.FormEvent) => void;
   error: string;
@@ -90,22 +88,6 @@ function ScanForm({
           <span className="mb-1.5 block text-sm text-white/60">Website</span>
           <input required className={input} placeholder="www.deine-firma.lu" inputMode="url" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
         </label>
-        <label className="block">
-          <span className="mb-1.5 block text-sm text-white/60">Branche</span>
-          <select className={input} value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })}>
-            {INDUSTRIES.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1.5 block text-sm text-white/60">
-            Ø Auftragswert in € <span className="text-white/30">(optional)</span>
-          </span>
-          <input className={input} placeholder="z. B. 15000" inputMode="numeric" value={form.dealValue} onChange={(e) => setForm({ ...form, dealValue: e.target.value })} />
-        </label>
       </div>
       {error && <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
       <button className="mt-6 w-full rounded-full bg-brand px-6 py-4 text-lg font-semibold text-white transition hover:bg-brand-light">
@@ -118,15 +100,16 @@ function ScanForm({
 
 /* ------------------------------------------------------------------ Scan-Animation */
 
-function Scanning({ company, keyword }: { company: string; keyword?: string }) {
+function Scanning({ company }: { company: string }) {
   const steps = [
     `Website von ${company || "deiner Firma"} wird geladen`,
-    "Ladezeit auf Smartphones wird gemessen (Google PageSpeed)",
+    "Branche & Angebot werden erkannt",
+    "Aktive Kampagnen auf Facebook & Instagram werden gesucht",
     "Google Ads in Luxemburg werden geprüft",
-    keyword ? `Google.lu-Ranking für „${keyword}“ wird geprüft` : "Sichtbarkeit bei Google.lu wird geprüft",
-    "Google-Maps-Profil & Bewertungen werden gesucht",
-    "Tracking-Pixel & Conversion-Tracking werden erkannt",
-    "Landingpages & Kontaktwege werden analysiert",
+    "Sichtbarkeit & Google-Bewertungen werden geprüft",
+    "Ladezeit auf Smartphones wird gemessen",
+    "Tracking & Retargeting-Pixel werden erkannt",
+    "Funnel, Landingpages & Einstiegsangebot werden analysiert",
     "Sprachversionen FR / DE / EN werden geprüft",
     "Potenzial für ganz Luxemburg wird berechnet",
   ];
@@ -182,7 +165,7 @@ function Result({
           <h2 className="text-2xl font-bold sm:text-3xl">
             {teaser.company} <span className="text-white/40">· {teaser.domain}</span>
           </h2>
-          <p className="text-sm text-white/50">{teaser.industryLabel} · Markt: ganz Luxemburg</p>
+          <p className="text-sm text-white/50">Erkannte Branche: {teaser.industryLabel} · Markt: ganz Luxemburg</p>
         </div>
         <button onClick={onRestart} className="text-sm text-white/50 underline-offset-4 hover:text-white hover:underline">
           Andere Firma prüfen
@@ -201,7 +184,7 @@ function Result({
           <PotentialBar percent={teaser.potentialPercent} />
           <p className="mt-4 text-sm text-white/60">
             Ca. <strong className="text-white">{num(teaser.monthlySearches)}</strong> Menschen suchen jeden Monat in Luxemburg nach{" "}
-            {teaser.industryLabel}. Du erreichst nur einen Bruchteil davon.
+            {teaser.industryLabel}. Die meisten davon finden dich nicht.
           </p>
         </div>
       </div>
@@ -209,10 +192,10 @@ function Result({
       {/* Geldzahlen */}
       <div className="relative">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <MoneyCard label="Verlorene Anfragen / Monat" value={p ? num(p.lostLeadsMonth) : "37"} locked={locked} />
-          <MoneyCard label="Verlorene Kunden / Monat" value={p ? num(p.lostCustomersMonth) : "8,4"} locked={locked} />
-          <MoneyCard label="Entgangener Umsatz / Monat" value={p ? eur(p.lostRevenueMonth) : "48.000 €"} locked={locked} highlight />
-          <MoneyCard label="Entgangener Umsatz / Jahr" value={p ? eur(p.lostRevenueYear) : "576.000 €"} locked={locked} highlight />
+          <StatCard label="Interessenten, die dich nicht finden / Monat" value={p ? num(p.missedPeopleMonth) : "2.300"} locked={locked} />
+          <StatCard label="Deine Anfragen heute / Monat (geschätzt)" value={p ? num(Math.round(p.currentLeadsMonth)) : "9"} locked={locked} />
+          <StatCard label="Verpasste Anfragen / Monat" value={p ? num(p.lostLeadsMonth) : "71"} locked={locked} highlight />
+          <StatCard label="Verpasste Anfragen / Jahr" value={p ? num(p.lostLeadsYear) : "852"} locked={locked} highlight />
         </div>
       </div>
 
@@ -238,7 +221,7 @@ function Result({
 
       {/* Befunde */}
       <div className="rounded-3xl border border-line bg-panel p-6">
-        <h3 className="text-lg font-semibold">Die größten Umsatz-Lecks</h3>
+        <h3 className="text-lg font-semibold">Wo dir Anfragen verloren gehen</h3>
         <div className="mt-4 space-y-4">
           {findings.map((f) => (
             <div key={f.id} className="rounded-2xl border border-line bg-black/40 p-5">
@@ -264,7 +247,7 @@ function Result({
           {locked &&
             Array.from({ length: teaser.lockedFindingsCount }).map((_, i) => (
               <div key={i} className="locked rounded-2xl border border-line bg-black/40 p-5" aria-hidden>
-                <p className="font-semibold">Weiterer Befund mit direktem Einfluss auf deinen Umsatz</p>
+                <p className="font-semibold">Weiterer Befund, der dich Anfragen kostet</p>
                 <p className="mt-1 text-sm text-white/65">Hier steht, was genau fehlt, warum es dich Kunden kostet und wie viel ungefähr.</p>
               </div>
             ))}
@@ -286,8 +269,9 @@ function Result({
           <div className="rounded-3xl border border-brand/40 bg-gradient-to-br from-brand/25 to-transparent p-6 text-center sm:p-10">
             <h3 className="text-2xl font-bold sm:text-3xl">Wir holen dir dieses Potenzial zurück.</h3>
             <p className="mx-auto mt-3 max-w-xl text-white/70">
-              Mit unserem Performance-Marketing-Komplettpaket (Google Ads, Meta Ads, Landingpages & Tracking) machen wir aus Suchenden zahlende Kunden. In einem kostenlosen
-              Strategiegespräch zeigen wir dir, wie wir die {eur(report.potential.lostRevenueMonth)} pro Monat konkret angehen.
+              Wir bauen dir ein Performance-Marketing-System, das planbar qualifizierte Anfragen bringt: Strategie & Angebot, Kampagnen auf Meta und Google, Landingpages, Tracking und
+              Retargeting, alles aus einer Hand. Im kostenlosen Strategiegespräch zeigen wir dir, wie wir die {num(report.potential.lostLeadsMonth)} verpassten Anfragen pro Monat konkret
+              zurückholen.
             </p>
             {BOOKING_URL && (
               <a href={BOOKING_URL} target="_blank" rel="noopener" className="mt-6 inline-block rounded-full bg-brand px-8 py-4 font-semibold transition hover:bg-brand-light">
@@ -340,7 +324,7 @@ function Gate({ token, lockedCount, onUnlock }: { token: string; lockedCount: nu
   return (
     <form onSubmit={submit} className="rounded-3xl border-2 border-brand bg-panel p-6 shadow-2xl shadow-brand/20 sm:p-8">
       <p className="text-sm uppercase tracking-widest text-brand-light">🔒 Vollständigen Report freischalten</p>
-      <h3 className="mt-2 text-2xl font-bold">Sieh, wie viel Umsatz dir genau entgeht und wie du ihn zurückholst</h3>
+      <h3 className="mt-2 text-2xl font-bold">Sieh, wie viele Anfragen du jeden Monat verpasst und wie du sie zurückholst</h3>
       <p className="mt-2 text-sm text-white/60">
         Du bekommst sofort alle Zahlen, {lockedCount > 0 ? `${lockedCount} weitere Befunde, ` : ""}konkrete Empfehlungen für jeden Punkt und den Report per E-Mail.
       </p>
@@ -404,7 +388,7 @@ function PotentialBar({ percent }: { percent: number }) {
   );
 }
 
-function MoneyCard({ label, value, locked, highlight }: { label: string; value: string; locked: boolean; highlight?: boolean }) {
+function StatCard({ label, value, locked, highlight }: { label: string; value: string; locked: boolean; highlight?: boolean }) {
   return (
     <div className={`rounded-2xl border p-5 ${highlight ? "border-brand/50 bg-brand/10" : "border-line bg-panel"}`}>
       <p className="text-xs text-white/60">{label}</p>

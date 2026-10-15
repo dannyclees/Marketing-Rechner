@@ -7,7 +7,7 @@ create table if not exists public.leads (
   domain text,
   industry text,
   score int,
-  lost_revenue_month int,
+  lost_leads_month int,
   potential_percent int,
   created_at timestamptz not null default now()
 );

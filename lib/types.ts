@@ -1,6 +1,6 @@
 export type Status = "good" | "warn" | "bad" | "unknown";
 
-export type CategoryId = "sichtbarkeit" | "website" | "conversion" | "tracking" | "luxemburg";
+export type CategoryId = "kampagnen" | "funnel" | "tracking" | "vertrauen" | "website" | "luxemburg";
 
 export interface Check {
   id: string;
@@ -29,14 +29,13 @@ export interface Potential {
   monthlySearches: number;
   currentSharePct: number;
   achievableSharePct: number;
+  /** Kaufinteressenten pro Monat, die die Firma heute nicht erreicht */
+  missedPeopleMonth: number;
   currentLeadsMonth: number;
   achievableLeadsMonth: number;
   lostLeadsMonth: number;
-  lostCustomersMonth: number;
-  lostRevenueMonth: number;
-  lostRevenueYear: number;
+  lostLeadsYear: number;
   potentialPercent: number;
-  dealValue: number;
 }
 
 export interface FullReport {
@@ -55,7 +54,7 @@ export interface FullReport {
   assumptions: string[];
 }
 
-/** Was der Browser vor der E-Mail-Eingabe zu sehen bekommt – keine Euro-Beträge, keine Empfehlungen. */
+/** Was der Browser vor der E-Mail-Eingabe zu sehen bekommt – keine Lead-Zahlen, keine Empfehlungen. */
 export interface Teaser {
   company: string;
   domain: string;

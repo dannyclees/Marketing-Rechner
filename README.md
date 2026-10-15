@@ -1,14 +1,15 @@
 # Marketing-Potenzial-Rechner Luxemburg
 
-Lead Magnet für **CE Marketing**: Firmen aus Luxemburg geben Firmenname, Website und Branche ein.
-Das Tool prüft automatisch ihr Online-Marketing und rechnet aus, wie viele Anfragen, Kunden und wie viel
-Umsatz ihnen in ganz Luxemburg entgehen. Die Zahlen sind geblurrt und werden erst nach Eingabe der E-Mail freigeschaltet.
+Lead Magnet für **CE Marketing** (Performance Marketing als Komplettpaket): Firmen aus Luxemburg geben nur
+Firmenname und Website ein. Das Tool erkennt die Branche automatisch, prüft Kampagnen, Funnel und Tracking und zeigt,
+wie viele Interessenten in ganz Luxemburg sie nicht finden und wie viele Anfragen ihnen pro Monat entgehen.
+Die Zahlen sind geblurrt und werden erst nach Eingabe der E-Mail freigeschaltet. Bewusst ohne Umsatz-Versprechen.
 
 ## Ablauf
 
-1. **Eingabe:** Firmenname, Website, Branche (High-Ticket), optional Ø Auftragswert
+1. **Eingabe:** nur Firmenname + Website (Branche wird aus dem Website-Text erkannt)
 2. **Analyse-Animation**, während im Hintergrund alle Checks laufen
-3. **Teaser:** Score, Potenzial-Leiste, Prüfpunkte, 3 offene Befunde; Euro-Beträge und Empfehlungen sind gesperrt
+3. **Teaser:** Score, Potenzial-Leiste, Prüfpunkte, 3 offene Befunde; Lead-Zahlen und Empfehlungen sind gesperrt
 4. **E-Mail-Gate:** Name, E-Mail, Telefon (optional), Einwilligung
 5. **Voller Report** auf der Seite und per E-Mail, dazu CTA zum Strategiegespräch. Du bekommst eine Lead-Benachrichtigung.
 
@@ -16,27 +17,30 @@ Umsatz ihnen in ganz Luxemburg entgehen. Die Zahlen sind geblurrt und werden ers
 
 | Check | Quelle |
 |---|---|
+| Meta Ads (Facebook/Instagram) aktiv in Luxemburg | Meta Ad Library API (`META_ACCESS_TOKEN`) |
 | Google Ads aktiv in Luxemburg | SerpAPI → Google Ads Transparency Center (Region LU) |
 | Ranking auf google.lu für das Branchen-Keyword, Mitbewerber mit Anzeigen | SerpAPI Google Search (gl=lu) |
 | Google-Maps-Profil, Sterne, Anzahl Bewertungen | SerpAPI Google Maps |
 | Ladezeit mobil | Google PageSpeed Insights |
-| HTTPS, Mobile, SEO-Basics, Formulare, CTAs, Telefon, Online-Buchung | eigener Crawler |
+| Einstiegsangebot, HTTPS, Mobile, SEO-Basics, Formulare, CTAs, Telefon, Online-Buchung | eigener Crawler |
 | Landingpages | Crawler + sitemap.xml |
 | Tracking: GA4, GTM, Google-Ads-Tag, Meta Pixel, LinkedIn, TikTok | Crawler |
 | Sprachen FR / DE / EN, +352-Nummer | Crawler |
 
-Ohne `SERPAPI_KEY` funktioniert alles weiterhin. Ads, Ranking und Maps werden dann aus Website-Signalen geschätzt.
+Ohne `SERPAPI_KEY` / `META_ACCESS_TOKEN` funktioniert alles weiterhin. Kampagnen werden dann über die Pixel/Tags auf der Website geschätzt.
 
 ## Potenzialrechnung
 
 Siehe `lib/analyze.ts` und `lib/benchmarks.ts`:
 
-- Suchvolumen pro Monat in **ganz Luxemburg** pro Branche
-- × Marktanteil, den die Firma heute abgreift (Ranking + Ads + Maps) vs. erreichbares Maximum (15 %)
-- × Anfragequote der Website (abhängig von Website- und Conversion-Score)
-- × Abschlussquote × Ø Auftragswert = entgangener Umsatz
+- Branche wird über Schlüsselwörter (FR/DE/EN) auf der Website erkannt, sonst Fallback „Dienstleistung“
+- Geschätzte Nachfrage pro Monat in **ganz Luxemburg** für die Branche
+- × Anteil, den die Firma heute erreicht (Meta Ads, Google Ads, Ranking, Bewertungen) vs. erreichbares Maximum (19 %)
+  → **Interessenten, die dich nicht finden**
+- × Anfragequote des Funnels (abhängig von Funnel-, Website- und Tracking-Score)
+  → **verpasste Anfragen pro Monat / Jahr**
 
-**Alle Benchmarks in `lib/benchmarks.ts` sind Schätzwerte.** Am besten mit Google Keyword Planner und echten Kundenzahlen nachschärfen.
+**Alle Benchmarks in `lib/benchmarks.ts` sind Schätzwerte.** Am besten mit Google Keyword Planner und echten Kampagnendaten nachschärfen.
 
 ## Sicherheit
 

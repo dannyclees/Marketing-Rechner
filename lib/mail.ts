@@ -1,6 +1,6 @@
 import type { FullReport } from "./types";
 
-const eur = (n: number) => `${n.toLocaleString("de-LU")} €`;
+const num = (n: number) => n.toLocaleString("de-LU");
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -37,9 +37,9 @@ export async function sendReportMail(to: string, name: string, r: FullReport): P
       <p style="margin:18px 0 0;font-size:15px">Score: <strong>${r.score}/100</strong> · Ungenutztes Potenzial: <strong>${p.potentialPercent} %</strong></p>
     </div>
     <p style="margin-top:24px">Hallo ${esc(name)},</p>
-    <p>hier ist deine vollständige Analyse. Nach unserer Schätzung entgehen dir in Luxemburg aktuell rund
-    <strong>${p.lostLeadsMonth} Anfragen</strong> und <strong>${p.lostCustomersMonth.toLocaleString("de-LU")} Kunden pro Monat</strong>.
-    Das entspricht etwa <strong style="color:#0b6bb0">${eur(p.lostRevenueMonth)} Umsatz pro Monat</strong> (${eur(p.lostRevenueYear)} pro Jahr).</p>
+    <p>hier ist deine vollständige Analyse. Nach unserer Schätzung erreichst du jeden Monat rund
+    <strong>${num(p.missedPeopleMonth)} Kaufinteressenten in Luxemburg</strong> nicht. Dadurch entgehen dir etwa
+    <strong style="color:#0b6bb0">${num(p.lostLeadsMonth)} Anfragen pro Monat</strong> (${num(p.lostLeadsYear)} pro Jahr).</p>
     <h2 style="font-size:18px;margin-top:28px">Deine Befunde & Empfehlungen</h2>
     <table style="width:100%;border-collapse:collapse">${items}</table>
     ${
@@ -50,7 +50,7 @@ export async function sendReportMail(to: string, name: string, r: FullReport): P
     <p style="color:#888;font-size:12px">Alle Zahlen sind Schätzungen auf Basis von Branchendurchschnitten für Luxemburg und öffentlich sichtbaren Daten deiner Website.<br>${r.assumptions.map(esc).join("<br>")}</p>
     <p style="color:#888;font-size:12px">${esc(brand)}</p>
   </div>`;
-  await send(to, `Deine Marketing-Analyse für ${r.company}: ${eur(p.lostRevenueMonth)}/Monat Potenzial`, html);
+  await send(to, `Deine Marketing-Analyse für ${r.company}: ${num(p.lostLeadsMonth)} verpasste Anfragen pro Monat`, html);
 }
 
 export async function notifyOwner(r: FullReport, contact: { email: string; name: string; phone: string }): Promise<void> {
@@ -58,8 +58,8 @@ export async function notifyOwner(r: FullReport, contact: { email: string; name:
   if (!to) return;
   const html = `<p><strong>Neuer Lead aus dem Marketing-Rechner</strong></p>
     <p>${esc(contact.name)} · ${esc(contact.email)} · ${esc(contact.phone || "keine Telefonnummer")}</p>
-    <p>${esc(r.company)} (${esc(r.domain)}) · ${esc(r.industryLabel)}</p>
-    <p>Score ${r.score}/100 · Potenzial ${r.potential.potentialPercent} % · ${eur(r.potential.lostRevenueMonth)}/Monat</p>
+    <p>${esc(r.company)} (${esc(r.domain)}) · erkannte Branche: ${esc(r.industryLabel)}</p>
+    <p>Score ${r.score}/100 · Potenzial ${r.potential.potentialPercent} % · ${num(r.potential.lostLeadsMonth)} verpasste Anfragen/Monat</p>
     <p>Top-Befunde:<br>${r.findings.slice(0, 5).map((f) => "• " + esc(f.title)).join("<br>")}</p>`;
-  await send(to, `🔥 Neuer Lead: ${r.company} (${eur(r.potential.lostRevenueMonth)}/Monat)`, html, contact.email);
+  await send(to, `🔥 Neuer Lead: ${r.company} (${esc(r.industryLabel)}, Score ${r.score})`, html, contact.email);
 }

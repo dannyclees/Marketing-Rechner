@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { analyze } from "@/lib/analyze";
-import { getIndustry } from "@/lib/benchmarks";
+import { detectIndustry } from "@/lib/benchmarks";
 import { crawlSite } from "@/lib/checks/crawl";
 import { baseDomain, checkGoogleAds, checkMaps, checkRanking } from "@/lib/checks/google";
+import { checkMetaAds } from "@/lib/checks/meta";
 import { runPageSpeed } from "@/lib/checks/pagespeed";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { normalizeUrl } from "@/lib/safeFetch";
@@ -20,8 +21,6 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const company = String(body?.company ?? "").trim().slice(0, 120);
   const rawUrl = String(body?.url ?? "").trim().slice(0, 300);
-  const industry = getIndustry(String(body?.industry ?? ""));
-  const dealValue = Number(body?.dealValue) || undefined;
   if (!company || !rawUrl) return NextResponse.json({ error: "Bitte Firmenname und Website angeben." }, { status: 400 });
 
   let url: URL;
@@ -42,25 +41,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const [pagespeed, ads, ranking, maps] = await Promise.all([
+  const industry = detectIndustry(site.headlineText, site.bodyText);
+
+  const [pagespeed, googleAds, metaAds, ranking, maps] = await Promise.all([
     runPageSpeed(site.finalUrl),
     checkGoogleAds(domain),
+    checkMetaAds(company),
     checkRanking(industry.keyword, domain, company),
     checkMaps(company, domain),
   ]);
 
-  const report = analyze({
-    company,
-    domain,
-    url: url.toString(),
-    industry,
-    dealValue: dealValue && dealValue > 0 && dealValue < 10_000_000 ? dealValue : undefined,
-    site,
-    pagespeed,
-    ads,
-    ranking,
-    maps,
-  });
+  const report = analyze({ company, domain, industry, site, pagespeed, googleAds, metaAds, ranking, maps });
 
   const preview = report.findings.slice(0, 3).map(({ recommendation: _r, ...f }) => f);
   const teaser: Teaser = {

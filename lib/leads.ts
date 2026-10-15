@@ -10,7 +10,7 @@ export interface Lead {
   domain: string;
   industry: string;
   score: number;
-  lostRevenueMonth: number;
+  lostLeadsMonth: number;
   potentialPercent: number;
   createdAt: string;
 }
@@ -22,7 +22,7 @@ export function toLead(report: FullReport, contact: { email: string; name: strin
     domain: report.domain,
     industry: report.industryLabel,
     score: report.score,
-    lostRevenueMonth: report.potential.lostRevenueMonth,
+    lostLeadsMonth: report.potential.lostLeadsMonth,
     potentialPercent: report.potential.potentialPercent,
     createdAt: new Date().toISOString(),
   };
@@ -51,7 +51,7 @@ export async function saveLead(lead: Lead): Promise<void> {
           domain: lead.domain,
           industry: lead.industry,
           score: lead.score,
-          lost_revenue_month: lead.lostRevenueMonth,
+          lost_leads_month: lead.lostLeadsMonth,
           potential_percent: lead.potentialPercent,
           created_at: lead.createdAt,
         }),
