@@ -11,7 +11,7 @@ export async function runPageSpeed(url: string): Promise<PageSpeed | null> {
   if (process.env.PAGESPEED_API_KEY) params.set("key", process.env.PAGESPEED_API_KEY);
   try {
     const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params}`, {
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) return null;
     const data = await res.json();
